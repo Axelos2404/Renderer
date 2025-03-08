@@ -34,6 +34,8 @@
   <ItemGroup>
     <CopyFileToFolders Include="..\Libs\freeglut\bin\freeglut.dll" />
     <CopyFileToFolders Include="..\Libs\freeglut\bin\x64\freeglut.dll" />
+    <CopyFileToFolders Include="..\Libs\fbxsdk\lib\x64\release\libfbxsdk.dll" />
+    <CopyFileToFolders Include="..\Libs\fbxsdk\lib\x64\debug\libfbxsdk.dll" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ModelLoader.h">

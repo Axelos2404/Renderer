@@ -1,6 +1,9 @@
 #pragma once
 #include <vector>
 #include <string>
+#if _WIN64
+#include <fbxsdk.h>
+#endif
 
 // Structures for 3D model data
 struct Vertex {
@@ -35,7 +38,13 @@ extern float modelScale;                                                        
 
 // Function declarations
 bool loadOBJ(const char* filename);                                                      // Load OBJ file
+bool loadFBX(const char* filename);                                                      // Load FBX file
 void loadNewModel();                                                                     // Load a new model from user input
 void resetModel();                                                                       // Reset model transformations
 void drawModel();                                                                        // Render the model
-void drawWireGrid(float size, int divisions, float y);  // Draw a reference grid on the XZ plane
+void drawWireGrid(float size, int divisions, float y);                                   // Draw a reference grid on the XZ plane
+
+// Helper function for FBX loading
+#if _WIN64
+void ProcessFbxNode(FbxNode* node);
+#endif

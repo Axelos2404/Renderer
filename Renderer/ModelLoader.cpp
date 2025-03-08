@@ -149,26 +149,238 @@ bool loadOBJ(const char* filename) {
     return true;                                                                         // Return success
 }
 
-// Function to prompt user for a new OBJ file path and load it
-void loadNewModel() {
-    char objFilePath[256] = "";                                                          // Buffer to store the file path input
-    printf("Enter path to new OBJ file: ");                                              // Prompt user to enter file path
-    if (fgets(objFilePath, sizeof(objFilePath), stdin) != NULL) {                        // Read input from standard input
-        // Remove trailing newline if present
-        size_t len = strlen(objFilePath);                                                // Get length of input string
-        if (len > 0 && objFilePath[len - 1] == '\n') {                                   // Check if last character is newline
-            objFilePath[len - 1] = '\0';                                                 // Replace newline with null terminator
+#if _WIN64
+// Load an FBX format 3D model file
+bool loadFBX(const char* filename) {
+    // Clear existing model data
+    vertices.clear();
+    textureCoords.clear();
+    normals.clear();
+    faces.clear();
+
+    // Add dummy elements at index 0 since FBX indices start at 0 but our system expects 1-based
+    vertices.push_back({ 0.0f, 0.0f, 0.0f });
+    textureCoords.push_back({ 0.0f, 0.0f });
+    normals.push_back({ 0.0f, 0.0f, 0.0f });
+
+    // Initialize FBX SDK manager
+    FbxManager* fbxManager = FbxManager::Create();
+    if (!fbxManager) {
+        printf("Error: Unable to create FBX Manager!\n");
+        return false;
+    }
+
+    // Create an IOSettings object
+    FbxIOSettings* ios = FbxIOSettings::Create(fbxManager, IOSROOT);
+    fbxManager->SetIOSettings(ios);
+
+    // Create an importer
+    FbxImporter* importer = FbxImporter::Create(fbxManager, "");
+
+    // Initialize the importer with the file
+    bool importStatus = importer->Initialize(filename, -1, fbxManager->GetIOSettings());
+    if (!importStatus) {
+        printf("Error: Unable to initialize FBX importer for %s\n", filename);
+        printf("Error: %s\n", importer->GetStatus().GetErrorString());
+        importer->Destroy();
+        fbxManager->Destroy();
+        return false;
+    }
+
+    // Create a new scene
+    FbxScene* scene = FbxScene::Create(fbxManager, "myScene");
+
+    // Import the contents of the file into the scene
+    importer->Import(scene);
+    importer->Destroy();
+
+    // Get the root node of the scene
+    FbxNode* rootNode = scene->GetRootNode();
+    if (rootNode) {
+        // Process all nodes in the scene recursively
+        for (int i = 0; i < rootNode->GetChildCount(); i++) {
+            ProcessFbxNode(rootNode->GetChild(i));
+        }
+    }
+
+    // Clean up
+    scene->Destroy();
+    fbxManager->Destroy();
+
+    printf("FBX model loaded: %s\n", filename);
+    printf("Vertices: %zu, Texture Coords: %zu, Normals: %zu, Faces: %zu\n",
+        vertices.size() - 1, textureCoords.size() - 1, normals.size() - 1, faces.size());
+
+    return true;
+}
+#endif
+
+#if _WIN64
+// Process a node in the FBX scene
+void ProcessFbxNode(FbxNode* node) {
+    // Get the node's global transform
+    FbxAMatrix globalTransform = node->EvaluateGlobalTransform();
+
+    // Get the node's mesh if it exists
+    FbxMesh* mesh = node->GetMesh();
+    if (mesh) {
+        // Process mesh geometry
+        int vertexCount = mesh->GetControlPointsCount();
+        FbxVector4* controlPoints = mesh->GetControlPoints();
+
+        // Store the starting index for this mesh's vertices
+        int vertexOffset = vertices.size();
+
+        // Add all vertices from this mesh with proper transformation
+        for (int i = 0; i < vertexCount; i++) {
+            // Apply global transformation to the vertex
+            FbxVector4 transformedPoint = globalTransform.MultT(controlPoints[i]);
+
+            Vertex v;
+            v.x = static_cast<float>(transformedPoint[0]);
+            v.y = static_cast<float>(transformedPoint[1]);
+            v.z = static_cast<float>(transformedPoint[2]);
+            vertices.push_back(v);
         }
 
-        if (strlen(objFilePath) > 0) {                                                   // Ensure path is not empty
-            bool modelLoaded = loadOBJ(objFilePath);                                     // Attempt to load the model file
-            if (modelLoaded) {                                                           // If model loaded successfully
-                printf("Successfully loaded model: %s\n", objFilePath);                  // Display success message
+        // Get all polygon (face) information
+        int polygonCount = mesh->GetPolygonCount();
+        for (int i = 0; i < polygonCount; i++) {
+            // Get number of vertices in this polygon
+            int polygonSize = mesh->GetPolygonSize(i);
+            if (polygonSize > 4) {
+                // Skip polygons with more than 4 vertices (not supported in our renderer)
+                printf("Warning: Skipping polygon with %d vertices (max supported is 4)\n", polygonSize);
+                continue;
             }
-            else {                                                                       // If model failed to load
-                printf("Failed to load OBJ file: %s\n", objFilePath);                    // Display error message
+
+            Face face;
+            face.vertexCount = polygonSize;
+
+            // Get each vertex of the polygon
+            for (int j = 0; j < polygonSize; j++) {
+                // Get control point (vertex) index
+                int controlPointIndex = mesh->GetPolygonVertex(i, j);
+                face.vertexIndices[j] = controlPointIndex + vertexOffset;
+
+                // Get UV coordinates if available
+                FbxLayerElementUV* uvElement = mesh->GetElementUV(0);
+                if (uvElement) {
+                    int uvIndex = 0;
+                    switch (uvElement->GetMappingMode()) {
+                    case FbxLayerElement::eByControlPoint:
+                        uvIndex = controlPointIndex;
+                        break;
+                    case FbxLayerElement::eByPolygonVertex:
+                        uvIndex = mesh->GetTextureUVIndex(i, j);
+                        break;
+                    default:
+                        break;
+                    }
+
+                    FbxVector2 uv;
+                    if (uvElement->GetReferenceMode() == FbxLayerElement::eDirect) {
+                        uv = uvElement->GetDirectArray().GetAt(uvIndex);
+                    }
+                    else if (uvElement->GetReferenceMode() == FbxLayerElement::eIndexToDirect) {
+                        int id = uvElement->GetIndexArray().GetAt(uvIndex);
+                        uv = uvElement->GetDirectArray().GetAt(id);
+                    }
+
+                    TextureCoord tc;
+                    tc.u = static_cast<float>(uv[0]);
+                    tc.v = static_cast<float>(uv[1]);
+                    textureCoords.push_back(tc);
+                    face.textureIndices[j] = textureCoords.size() - 1;
+                }
+                else {
+                    face.textureIndices[j] = 0; // No texture coordinates
+                }
+
+                // Get normal if available
+                FbxLayerElementNormal* normalElement = mesh->GetElementNormal(0);
+                if (normalElement) {
+                    FbxVector4 normal;
+                    if (normalElement->GetMappingMode() == FbxLayerElement::eByControlPoint) {
+                        switch (normalElement->GetReferenceMode()) {
+                        case FbxLayerElement::eDirect:
+                            normal = normalElement->GetDirectArray().GetAt(controlPointIndex);
+                            break;
+                        case FbxLayerElement::eIndexToDirect:
+                            int id = normalElement->GetIndexArray().GetAt(controlPointIndex);
+                            normal = normalElement->GetDirectArray().GetAt(id);
+                            break;
+                        }
+                    }
+                    else if (normalElement->GetMappingMode() == FbxLayerElement::eByPolygonVertex) {
+                        switch (normalElement->GetReferenceMode()) {
+                        case FbxLayerElement::eDirect:
+                            normal = normalElement->GetDirectArray().GetAt(mesh->GetPolygonVertexIndex(i) + j);
+                            break;
+                        case FbxLayerElement::eIndexToDirect:
+                            int id = normalElement->GetIndexArray().GetAt(mesh->GetPolygonVertexIndex(i) + j);
+                            normal = normalElement->GetDirectArray().GetAt(id);
+                            break;
+                        }
+                    }
+
+                    Normal n;
+                    n.x = static_cast<float>(normal[0]);
+                    n.y = static_cast<float>(normal[1]);
+                    n.z = static_cast<float>(normal[2]);
+                    normals.push_back(n);
+                    face.normalIndices[j] = normals.size() - 1;
+                }
+                else {
+                    face.normalIndices[j] = 0; // No normal
+                }
             }
+
+            faces.push_back(face);
         }
+    }
+
+    // Process child nodes recursively
+    for (int i = 0; i < node->GetChildCount(); i++) {
+        ProcessFbxNode(node->GetChild(i));
+    }
+}
+#endif
+
+// Prompt user for a new model file path and load it
+void loadNewModel() {
+    char filename[256];
+    printf("Enter model file path (OBJ or FBX format): ");
+    scanf_s("%255s", filename, (unsigned)_countof(filename));
+
+    // Get file extension
+    const char* extension = strrchr(filename, '.');
+    if (!extension) {
+        printf("Error: File has no extension. Please specify .obj or .fbx file.\n");
+        return;
+    }
+
+    // Load based on file extension
+    bool success = false;
+    if (_stricmp(extension, ".obj") == 0) {
+        success = loadOBJ(filename);
+    }
+#if _WIN64
+    else if (_stricmp(extension, ".fbx") == 0) {
+        success = loadFBX(filename);
+    }
+#endif
+    else {
+        printf("Error: Unsupported file format. Only .obj and .fbx are supported.\n");
+        return;
+    }
+
+    if (success) {
+        // Reset model position and orientation after loading
+        resetModel();
+    }
+    else {
+        printf("Failed to load model: %s\n", filename);
     }
 }
 
