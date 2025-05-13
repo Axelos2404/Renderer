@@ -6,62 +6,67 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-// Camera parameters with default values
-float cameraX = 0.0f, cameraY = 0.0f, cameraZ = 5.0f;                                    // Camera position
-float cameraYaw = 0.0f, cameraPitch = 0.0f;                                              // Camera orientation angles
-float cameraSpeed = 0.1f;                                                                // Camera movement speed
-float mouseSensitivity = 0.2f;                                                           // Mouse sensitivity for camera control
+// Constructor implementation
+Camera::Camera(float posX, float posY, float posZ) {
+    this->posX = posX;
+    this->posY = posY;
+    this->posZ = posZ;
+    yaw = 0.0f;
+    pitch = 0.0f;
+    moveSpeed = 0.1f;
+    mouseSensitivity = 0.2f;
+}
 
 // Reset camera to default position and orientation
-void resetCamera() {
-    cameraX = 0.0f;                                                                      // Reset X position
-    cameraY = 0.0f;                                                                      // Reset Y position
-    cameraZ = 5.0f;                                                                      // Reset Z position
-    cameraYaw = 0.0f;                                                                    // Reset yaw angle
-    cameraPitch = 0.0f;                                                                  // Reset pitch angle
+void Camera::reset() {
+    posX = 0.0f;
+    posY = 0.0f;
+    posZ = 5.0f;
+    yaw = 0.0f;
+    pitch = 0.0f;
 }
 
 // Update camera position based on movement inputs
-void updateCameraPosition(float forwardAmount, float rightAmount, float upAmount) {
+void Camera::updatePosition(float forwardAmount, float rightAmount, float upAmount) {
     // Calculate forward and right vectors based on camera orientation
-    float forwardX = sin(cameraYaw * M_PI / 180.0f) * cos(cameraPitch * M_PI / 180.0f);  // X component of forward vector
-    float forwardY = sin(cameraPitch * M_PI / 180.0f);                                   // Y component of forward vector
-    float forwardZ = cos(cameraYaw * M_PI / 180.0f) * cos(cameraPitch * M_PI / 180.0f);  // Z component of forward vector
+    float forwardX = sin(yaw * M_PI / 180.0f) * cos(pitch * M_PI / 180.0f);
+    float forwardY = sin(pitch * M_PI / 180.0f);
+    float forwardZ = cos(yaw * M_PI / 180.0f) * cos(pitch * M_PI / 180.0f);
 
     // Right vector is perpendicular to forward vector (cross product with up vector)
-    float rightX = sin((cameraYaw + 90.0f) * M_PI / 180.0f);                             // X component of right vector
-    float rightZ = cos((cameraYaw + 90.0f) * M_PI / 180.0f);                             // Z component of right vector
+    float rightX = sin((yaw + 90.0f) * M_PI / 180.0f);
+    float rightZ = cos((yaw + 90.0f) * M_PI / 180.0f);
 
     // Update camera position based on movement inputs
-    cameraX += forwardX * forwardAmount * cameraSpeed;                                   // Move along forward vector X
-    cameraY += forwardY * forwardAmount * cameraSpeed;                                   // Move along forward vector Y
-    cameraZ += forwardZ * forwardAmount * cameraSpeed;                                   // Move along forward vector Z
+    posX += forwardX * forwardAmount * moveSpeed;
+    posY += forwardY * forwardAmount * moveSpeed;
+    posZ += forwardZ * forwardAmount * moveSpeed;
 
-    cameraX += rightX * rightAmount * cameraSpeed;                                       // Move along right vector X
-    cameraZ += rightZ * rightAmount * cameraSpeed;                                       // Move along right vector Z
+    posX += rightX * rightAmount * moveSpeed;
+    posZ += rightZ * rightAmount * moveSpeed;
 
-    cameraY += upAmount * cameraSpeed;                                                   // Move directly up/down
+    posY += upAmount * moveSpeed;
 }
 
 // Update camera orientation based on mouse movement
-void updateCameraOrientation(float yawDelta, float pitchDelta) {
+void Camera::updateOrientation(float yawDelta, float pitchDelta) {
     // Update camera orientation
-    cameraYaw -= yawDelta * mouseSensitivity;                                            // Adjust yaw (left/right rotation)
-    cameraPitch -= pitchDelta * mouseSensitivity;                                        // Adjust pitch (up/down rotation)
+    yaw += yawDelta * mouseSensitivity;
+    pitch += pitchDelta * mouseSensitivity;
 
     // Limit pitch angle to prevent camera flipping
-    cameraPitch = std::max(-89.0f, std::min(89.0f, cameraPitch));                        // Clamp pitch between -89 and 89 degrees
+    pitch = std::max(-89.0f, std::min(89.0f, pitch));
 }
 
 // Set up camera view for rendering
-void setupCamera() {
+void Camera::setupView() {
     // Calculate camera look-at point based on camera position and orientation angles
-    float lookX = cameraX + sin(cameraYaw * M_PI / 180.0f) * cos(cameraPitch * M_PI / 180.0f);  // X coordinate of look-at point
-    float lookY = cameraY + sin(cameraPitch * M_PI / 180.0f);                                   // Y coordinate of look-at point
-    float lookZ = cameraZ + cos(cameraYaw * M_PI / 180.0f) * cos(cameraPitch * M_PI / 180.0f);  // Z coordinate of look-at point
+    float lookX = posX + sin(yaw * M_PI / 180.0f) * cos(pitch * M_PI / 180.0f);
+    float lookY = posY + sin(pitch * M_PI / 180.0f);
+    float lookZ = posZ + cos(yaw * M_PI / 180.0f) * cos(pitch * M_PI / 180.0f);
 
     // Set up the camera view using the calculated look-at point
-    gluLookAt(cameraX, cameraY, cameraZ,    // Camera position (eye point)
-        lookX, lookY, lookZ,          // Look-at point (center of view)
-        0.0f, 1.0f, 0.0f);           // Up vector (defines camera orientation)
+    gluLookAt(posX, posY, posZ,    // Camera position (eye point)
+        lookX, lookY, lookZ,        // Look-at point (center of view)
+        0.0f, 1.0f, 0.0f);          // Up vector (defines camera orientation)
 }

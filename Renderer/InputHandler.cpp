@@ -4,7 +4,7 @@
 #include "Renderer.h"
 #include <algorithm>
 
-// Define PI constant if not already defined by the compiler
+// Define PI constant
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -16,179 +16,228 @@ int mouseX = 0, mouseY = 0;                                                     
 // Menu ID
 int mainMenu;                                                                            // ID for the main context menu
 
-// Keyboard callback function - processes key presses for navigation and model manipulation
-void keyboard(unsigned char key, int x, int y) {
+// Constructor
+InputHandler::InputHandler(Camera& cam, ModelLoader& model, Renderer& rend)
+    : camera(cam), modelLoader(model), renderer(rend),
+      lastMouseX(0), lastMouseY(0), mouseLeftDown(false), mouseRightDown(false) {
+}
+
+// Initialize input handling
+void InputHandler::init() {
+    // Register GLUT callbacks
+    glutKeyboardFunc(keyboardWrapper);
+    glutSpecialFunc(specialKeysWrapper);
+    glutMouseFunc(mouseButtonWrapper);
+    glutMotionFunc(mouseMotionWrapper);
+    
+    // Create right-click context menu
+    createMenu();
+}
+
+// Keyboard callback function
+void InputHandler::keyboardCallback(unsigned char key, int x, int y) {
     // Calculate forward and right vectors based on camera orientation
-    float forwardX = sin(cameraYaw * M_PI / 180.0f) * cos(cameraPitch * M_PI / 180.0f);  // X component of forward vector
-    float forwardY = sin(cameraPitch * M_PI / 180.0f);                                   // Y component of forward vector
-    float forwardZ = cos(cameraYaw * M_PI / 180.0f) * cos(cameraPitch * M_PI / 180.0f);  // Z component of forward vector
+    float forwardX = sin(camera.getYaw() * M_PI / 180.0f) * cos(camera.getPitch() * M_PI / 180.0f);
+    float forwardY = sin(camera.getPitch() * M_PI / 180.0f);
+    float forwardZ = cos(camera.getYaw() * M_PI / 180.0f) * cos(camera.getPitch() * M_PI / 180.0f);
 
     // Right vector is perpendicular to forward vector (cross product with up vector)
-    float rightX = sin((cameraYaw + 90.0f) * M_PI / 180.0f);                             // X component of right vector
-    float rightZ = cos((cameraYaw + 90.0f) * M_PI / 180.0f);                             // Z component of right vector
-
-    // Model transformation speed constants
-    const float moveSpeed = 0.1f;                                                        // Model translation speed
-    const float rotateSpeed = 5.0f;                                                      // Model rotation speed in degrees
-    const float scaleSpeed = 0.1f;                                                       // Model scaling speed
+    float rightX = sin((camera.getYaw() + 90.0f) * M_PI / 180.0f);
+    float rightZ = cos((camera.getYaw() + 90.0f) * M_PI / 180.0f);
 
     switch (key) {
-        // Camera movement controls
     case 'w':                                                                            // Move camera forward
-        cameraX += forwardX * cameraSpeed;                                               // Increment X position along forward vector
-        cameraY += forwardY * cameraSpeed;                                               // Increment Y position along forward vector
-        cameraZ += forwardZ * cameraSpeed;                                               // Increment Z position along forward vector
+    case 'W':
+        camera.setX(camera.getX() + forwardX * camera.getSpeed());                       // Move along XYZ based on forward vector
+        camera.setY(camera.getY() + forwardY * camera.getSpeed());
+        camera.setZ(camera.getZ() + forwardZ * camera.getSpeed());
         break;
     case 's':                                                                            // Move camera backward
-        cameraX -= forwardX * cameraSpeed;                                               // Decrement X position along forward vector
-        cameraY -= forwardY * cameraSpeed;                                               // Decrement Y position along forward vector
-        cameraZ -= forwardZ * cameraSpeed;                                               // Decrement Z position along forward vector
+    case 'S':
+        camera.setX(camera.getX() - forwardX * camera.getSpeed()); 
+        camera.setY(camera.getY() - forwardY * camera.getSpeed()); 
+        camera.setZ(camera.getZ() - forwardZ * camera.getSpeed()); 
         break;
-    case 'd':                                                                            // Strafe camera right
-        cameraX -= rightX * cameraSpeed;                                                 // Decrement X position along right vector
-        cameraZ -= rightZ * cameraSpeed;                                                 // Decrement Z position along right vector
+    case 'a':                                                                            // Move camera left
+    case 'A':
+        camera.setX(camera.getX() + rightX * camera.getSpeed());                         // Move along XZ based on right vector
+        camera.setZ(camera.getZ() + rightZ * camera.getSpeed());
         break;
-    case 'a':                                                                            // Strafe camera left
-        cameraX += rightX * cameraSpeed;                                                 // Increment X position along right vector
-        cameraZ += rightZ * cameraSpeed;                                                 // Increment Z position along right vector
+    case 'd':                                                                            // Move camera right
+    case 'D':
+        camera.setX(camera.getX() - rightX * camera.getSpeed());
+        camera.setZ(camera.getZ() - rightZ * camera.getSpeed());
         break;
     case 'q':                                                                            // Move camera up
-        cameraY += cameraSpeed;                                                          // Increment Y position directly
+    case 'Q':
+        camera.setY(camera.getY() + camera.getSpeed());                                  // Move up along Y axis
         break;
     case 'e':                                                                            // Move camera down
-        cameraY -= cameraSpeed;                                                          // Decrement Y position directly
+    case 'E':
+        camera.setY(camera.getY() - camera.getSpeed());                                  // Move down along Y axis
         break;
-
-        // Model position controls
     case 'i':                                                                            // Move model forward (away from camera)
-        modelZ -= moveSpeed;                                                             // Decrement model Z position
+    case 'I':
+        modelLoader.setZ(modelLoader.getZ() - 0.1f);                                     // Decrease Z position (move away)
         break;
     case 'k':                                                                            // Move model backward (toward camera)
-        modelZ += moveSpeed;                                                             // Increment model Z position
+    case 'K':
+        modelLoader.setZ(modelLoader.getZ() + 0.1f);                                     // Increase Z position (move closer)
         break;
     case 'j':                                                                            // Move model left
-        modelX -= moveSpeed;                                                             // Decrement model X position
+    case 'J':
+        modelLoader.setX(modelLoader.getX() - 0.1f);                                     // Decrease X position (move left)
         break;
     case 'l':                                                                            // Move model right
-        modelX += moveSpeed;                                                             // Increment model X position
+    case 'L':
+        modelLoader.setX(modelLoader.getX() + 0.1f);                                     // Increase X position (move right)
         break;
     case 'u':                                                                            // Move model up
-        modelY += moveSpeed;                                                             // Increment model Y position
+    case 'U':
+        modelLoader.setY(modelLoader.getY() + 0.1f);                                     // Increase Y position (move up)
         break;
     case 'o':                                                                            // Move model down
-        modelY -= moveSpeed;                                                             // Decrement model Y position
+    case 'O':
+        modelLoader.setY(modelLoader.getY() - 0.1f);                                     // Decrease Y position (move down)
         break;
-
-        // Model rotation controls
-    case 'x':                                                                            // Rotate model clockwise around X axis
-        modelRotX += rotateSpeed;                                                        // Increment X rotation angle
+    case 'r':                                                                            // Rotate model around X axis
+    case 'R':
+        modelLoader.setRotX(modelLoader.getRotX() + 5.0f);                               // Increase X rotation by 5 degrees
         break;
-    case 'X':                                                                            // Rotate model counter-clockwise around X axis
-        modelRotX -= rotateSpeed;                                                        // Decrement X rotation angle
+    case 'f':                                                                            // Rotate model around Y axis
+    case 'F':
+        modelLoader.setRotY(modelLoader.getRotY() + 5.0f);                               // Increase Y rotation by 5 degrees
         break;
-    case 'y':                                                                            // Rotate model clockwise around Y axis
-        modelRotY += rotateSpeed;                                                        // Increment Y rotation angle
+    case 'v':                                                                            // Rotate model around Z axis
+    case 'V':
+        modelLoader.setRotZ(modelLoader.getRotZ() + 5.0f);                               // Increase Z rotation by 5 degrees
         break;
-    case 'Y':                                                                            // Rotate model counter-clockwise around Y axis
-        modelRotY -= rotateSpeed;                                                        // Decrement Y rotation angle
-        break;
-    case 'z':                                                                            // Rotate model clockwise around Z axis
-        modelRotZ += rotateSpeed;                                                        // Increment Z rotation angle
-        break;
-    case 'Z':                                                                            // Rotate model counter-clockwise around Z axis
-        modelRotZ -= rotateSpeed;                                                        // Decrement Z rotation angle
-        break;
-
-        // Model scaling controls
     case '+':                                                                            // Scale model up
-    case '=':                                                                            // Alternative key for scaling up (same key on keyboard)
-        modelScale += scaleSpeed;                                                        // Increase model scale factor
+    case '=':
+        modelLoader.setScale(modelLoader.getScale() * 1.1f);                             // Increase scale by 10%
         break;
     case '-':                                                                            // Scale model down
-        modelScale = std::max(0.1f, modelScale - scaleSpeed);                            // Decrease model scale factor with minimum limit
+    case '_':
+        modelLoader.setScale(std::max(0.1f, modelLoader.getScale() * 0.9f));             // Decrease scale by 10%, but not below 0.1
         break;
-
-        // Reset transformation controls
-    case 'r':                                                                            // Reset model transformations
-        resetModel();                                                                    // Call function to reset model position, rotation, and scale
-        break;
-    case 'R':                                                                            // Reset camera position and orientation
-        resetCamera();                                                                   // Call function to reset camera position and orientation
-        break;
-
     case 'g':                                                                            // Toggle grid visibility
     case 'G':
-        toggleGrid();                                                                    // Toggle grid on/off
+        renderer.toggleGrid();                                                           // Toggle grid on/off
         break;
-
-    case 27:                                                                             // ESC key (ASCII 27)
+    case 'c':                                                                            // Reset camera position
+    case 'C':
+        camera.reset();                                                                  // Reset camera to default position
+        break;
+    case 'm':                                                                            // Reset model transformations
+    case 'M':
+        modelLoader.resetModel();                                                        // Reset model position, rotation, and scale
+        break;
+    case 'n':                                                                            // Load a new model
+    case 'N':
+        modelLoader.loadNewModel();                                                      // Prompt user for new model file
+        break;
+    case 27:                                                                             // ESC key
         exit(0);                                                                         // Exit the application
         break;
+    case 'b':                                                                            // Toggle debug rendering mode
+    case 'B':
+        modelLoader.cycleDebugMode();                                                    // Cycle through debug modes
+        printf("Debug mode: %d\n", modelLoader.getDebugMode());                          // Print current debug mode
+        break;
+        
     }
-    glutPostRedisplay();                                                                 // Request a redraw to update the display
+    glutPostRedisplay();                                                                 // Request display update
 }
 
-// Mouse button callback function - handles mouse button press and release events
-void mouseButton(int button, int state, int x, int y) {
-    if (button == GLUT_LEFT_BUTTON) {                                                    // Check if left mouse button was pressed/released
-        mousePressed = (state == GLUT_DOWN);                                             // Set mousePressed flag based on button state
-        mouseX = x;                                                                      // Store current X position of mouse
-        mouseY = y;                                                                      // Store current Y position of mouse
-    }
+// Special keys callback function (arrow keys, function keys, etc.)
+void InputHandler::specialKeysCallback(int key, int x, int y) {
+    // Handle special keys if needed
+    glutPostRedisplay();                                                                 // Request display update
 }
 
-// Mouse motion callback function - handles mouse movement when button is pressed
-void mouseMotion(int x, int y) {
-    if (mousePressed) {                                                                  // Only process if mouse button is pressed
-        float deltaX = x - mouseX;                                                       // Calculate horizontal mouse movement
-        float deltaY = y - mouseY;                                                       // Calculate vertical mouse movement
+// Mouse button callback function
+void InputHandler::mouseButtonCallback(int button, int state, int x, int y) {
+    lastMouseX = x;                                                                      // Store current mouse X position
+    lastMouseY = y;                                                                      // Store current mouse Y position
 
-        // Update camera orientation based on mouse movement
-        cameraYaw -= deltaX * mouseSensitivity;                                          // Adjust yaw (left/right rotation)
-        cameraPitch -= deltaY * mouseSensitivity;                                        // Adjust pitch (up/down rotation)
-
-        // Limit pitch angle to prevent camera flipping
-        if (cameraPitch > 89.0f) cameraPitch = 89.0f;                                    // Clamp maximum pitch to 89 degrees
-        if (cameraPitch < -89.0f) cameraPitch = -89.0f;                                  // Clamp minimum pitch to -89 degrees
-
-        // Update stored mouse position for next frame
-        mouseX = x;                                                                      // Store new X position
-        mouseY = y;                                                                      // Store new Y position
-
-        glutPostRedisplay();                                                             // Request a redraw to update the display
+    // Update mouse button states
+    if (button == GLUT_LEFT_BUTTON) {
+        mouseLeftDown = (state == GLUT_DOWN);                                            // Update left button state
+    }
+    else if (button == GLUT_RIGHT_BUTTON) {
+        mouseRightDown = (state == GLUT_DOWN);                                           // Update right button state
     }
 }
 
-// Menu callback function - processes menu selections
-void menuCallback(int option) {
+// Mouse motion callback function
+void InputHandler::mouseMotionCallback(int x, int y) {
+    int deltaX = x - lastMouseX;                                                         // Calculate X movement
+    int deltaY = y - lastMouseY;                                                         // Calculate Y movement
+
+    // Update camera orientation based on mouse movement
+    if (mouseLeftDown) {
+        // Invert the deltaX and deltaY to fix the reversed controls
+        camera.updateOrientation(-deltaX, -deltaY);                                      // Use the camera's orientation update method with inverted deltas
+    }
+
+    lastMouseX = x;                                                                      // Update last mouse X position
+    lastMouseY = y;                                                                      // Update last mouse Y position
+
+    glutPostRedisplay();                                                                 // Request display update
+}
+
+// Menu callback function
+void InputHandler::menuCallback(int option) {
     switch (option) {
-    case MENU_LOAD_MODEL:                                                                // User selected "Load New Model"
-        loadNewModel();                                                                  // Call function to load a new model
+    case MENU_LOAD_MODEL:
+        modelLoader.loadNewModel();
         break;
-    case MENU_RESET_CAMERA:                                                              // User selected "Reset Camera"
-        resetCamera();                                                                   // Reset camera to default position
+    case MENU_RESET_CAMERA:
+        camera.reset();
         break;
-    case MENU_RESET_MODEL:                                                               // User selected "Reset Model Position"
-        resetModel();                                                                    // Reset model transformations
+    case MENU_RESET_MODEL:
+        modelLoader.resetModel();
         break;
-    case MENU_TOGGLE_GRID:                                                               // User selected "Toggle Grid"
-        toggleGrid();                                                                    // Toggle grid visibility flag
-        glutPostRedisplay();                                                             // Request a redraw to update display
+    case MENU_TOGGLE_GRID:
+        renderer.toggleGrid();
         break;
-    case MENU_EXIT:                                                                      // User selected "Exit"
-        exit(0);                                                                         // Exit the application
+    case MENU_EXIT:
+        exit(0);
         break;
     }
+    glutPostRedisplay();
 }
 
-// Create right-click context menu
-void createMenu() {
-    mainMenu = glutCreateMenu(menuCallback);                                             // Create menu with callback function
-    glutAddMenuEntry("Load New Model", MENU_LOAD_MODEL);                                 // Add menu option to load a new model
-    glutAddMenuEntry("Reset Camera", MENU_RESET_CAMERA);                                 // Add menu option to reset camera position
-    glutAddMenuEntry("Reset Model Position", MENU_RESET_MODEL);                          // Add menu option to reset model transform
-    glutAddMenuEntry("Toggle Grid", MENU_TOGGLE_GRID);                                   // Add menu option to toggle grid visibility
-    glutAddMenuEntry("Exit", MENU_EXIT);                                                 // Add menu option to exit application
+// Create the right-click context menu
+void InputHandler::createMenu() {
+    int menu = glutCreateMenu(::menuCallback);
+    glutAddMenuEntry("Load New Model", MENU_LOAD_MODEL);
+    glutAddMenuEntry("Load Texture", MENU_LOAD_TEXTURE);
+    glutAddMenuEntry("Toggle Texture", MENU_TOGGLE_TEXTURE);
+    glutAddMenuEntry("Reset Camera", MENU_RESET_CAMERA);
+    glutAddMenuEntry("Reset Model", MENU_RESET_MODEL);
+    glutAddMenuEntry("Toggle Grid", MENU_TOGGLE_GRID);
+    glutAddMenuEntry("Exit", MENU_EXIT);
+    glutAttachMenu(GLUT_RIGHT_BUTTON);
+}
 
-    glutAttachMenu(GLUT_RIGHT_BUTTON);                                                   // Attach menu to right mouse button
+// Static wrapper functions for GLUT callbacks
+void keyboardWrapper(unsigned char key, int x, int y) {
+    inputHandler.keyboardCallback(key, x, y);
+}
+
+void specialKeysWrapper(int key, int x, int y) {
+    inputHandler.specialKeysCallback(key, x, y);
+}
+
+void mouseButtonWrapper(int button, int state, int x, int y) {
+    inputHandler.mouseButtonCallback(button, state, x, y);
+}
+
+void mouseMotionWrapper(int x, int y) {
+    inputHandler.mouseMotionCallback(x, y);
+}
+
+void menuCallback(int option) {
+    inputHandler.menuCallback(option);
 }
