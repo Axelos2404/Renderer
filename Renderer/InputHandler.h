@@ -16,8 +16,6 @@ enum MenuOptions {
     MENU_RESET_CAMERA,                                 // Option to reset camera position
     MENU_RESET_MODEL,                                  // Option to reset model transformations
     MENU_TOGGLE_GRID,                                  // Option to toggle grid visibility
-    MENU_LOAD_TEXTURE,                                 // Option to load a texture
-    MENU_TOGGLE_TEXTURE,                               // Option to toggle texture display
     MENU_EXIT                                          // Option to exit the application
 };
 

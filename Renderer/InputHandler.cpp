@@ -212,8 +212,6 @@ void InputHandler::menuCallback(int option) {
 void InputHandler::createMenu() {
     int menu = glutCreateMenu(::menuCallback);
     glutAddMenuEntry("Load New Model", MENU_LOAD_MODEL);
-    glutAddMenuEntry("Load Texture", MENU_LOAD_TEXTURE);
-    glutAddMenuEntry("Toggle Texture", MENU_TOGGLE_TEXTURE);
     glutAddMenuEntry("Reset Camera", MENU_RESET_CAMERA);
     glutAddMenuEntry("Reset Model", MENU_RESET_MODEL);
     glutAddMenuEntry("Toggle Grid", MENU_TOGGLE_GRID);
