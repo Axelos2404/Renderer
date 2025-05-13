@@ -38,7 +38,7 @@ void init() {
     printf("  +/- - Scale model up/down\n");
     printf("\nDebugging Controls:\n");
     printf("  B - Cycle through debug rendering modes\n");
-    printf("      (Normal → Solid Color → Wireframe → Normals → Texture Coords)\n");
+    printf("      (Normal -> Solid Color -> Wireframe -> Normals -> Texture Coords)\n");
     
     printf("\nOther Controls:\n");
     printf("  G - Toggle grid visibility\n");
